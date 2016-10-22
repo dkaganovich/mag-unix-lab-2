@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
  
 if [ "${BASH_VERSINFO[0]}" -lt "4" ]; then
-    echo "Sorry, you need at least bash-4.0 to run this script"
+    echo "bash-4.0 or higher is required to run this script"
     exit 1
 fi
  
@@ -10,27 +10,32 @@ if [ "$#" -gt "2" ]; then
     exit 1
 fi
 
-# loading data
-path=
-data=
-
 #parse args
-if [ "$1" = "-f" ] || [ "$1" = "--file" ]; then
-    shift
-    path="$1"
-elif [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    echo "USAGE: paster [-h] [-f FILE]"
-    exit 0
-elif [ ! -z "$1" ]; then
-    echo "Illegal arguments. Try 'paster --help' for more information"
-    exit 1
-fi
- 
+while [ "$#" -gt 0 ]; do
+case "$1" in
+    -f|--file)
+	    path="$2"
+	    shift
+    ;;
+    -h|--help)
+	    echo "USAGE: paster [-h] [-f FILE]"
+	    exit 0
+    ;;
+    *)
+		echo "Illegal arguments. Try 'paster --help' for more information"
+    	exit 1
+    ;;
+esac
+shift
+done
+
+# load data
 if [ -z "$path" ]; then
-    echo "Make a new paste (Ctrl+D to submit):"
+    echo "Make a new paste (Ctrl-D to submit):"
     data=$(</dev/stdin)
 else
     if [ -f "$path" ]; then
+    	echo "Read file data"
         data=$(<"$path")
     else
         echo "File does not exist"
@@ -39,8 +44,8 @@ else
 fi
  
 # specifying language
-declare -A exts
-exts+=(
+declare -A langs
+langs+=(
     ["bash"]="sh bash"
     ["c"]="c h"
     ["cpp"]="hpp hxx cpp cc cxx"
@@ -54,28 +59,48 @@ exts+=(
     ["html5"]="html htm xhtml xht")
  
 function lang_by_ext() {
-    ext="$1"
-    for lang in "${!exts[@]}"; do
-        if [[ "${exts[$lang]}" =~ "${ext,,}" ]]; then
+    local ext="$1"
+    local lang
+    for lang in "${!langs[@]}"; do
+        if [[ "${langs[$lang]}" =~ "${ext,,}" ]]; then
             echo "$lang"
             break
         fi
     done
+    return 0
+}
+
+function lang_by_bin_name() {
+	local bin_name="$1"
+	if [[ "$bin_name" =~ ([[:alpha:]]+) ]]; then # cut off version if presents
+        bin_name="${BASH_REMATCH[1]}"
+    fi
+	local lang
+    for lang in "${!langs[@]}"; do
+        if [ "$lang" = "$bin_name" ]; then
+            echo "$lang"
+            break
+        fi
+    done
+    return 0
 }
  
-function lang_by_bin() {
-    for lang in "${!exts[@]}"; do
-        if [ "$lang" = "$1" ]; then
-            echo "$lang"
-            break
-        fi
-    done
+function lang_by_bin_path() {
+	local bin_path="$1"
+	local bin_name="${bin_path##*/}"
+	local real_bin_path=$(readlink -f "$(which "$bin_path")" 2>/dev/null)
+    local real_bin_name="${real_bin_path##*/}"
+    local result=$(lang_by_bin_name "$real_bin_name")
+    if [ -z "$result" ]; then
+    	result=$(lang_by_bin_name "$bin_name")
+    fi
+    echo "$result"
+    return 0
 }
 
-lang=
-
+echo "Find out language..."
 # try to parse file extension
-if [ ! -z "$path" ]; then
+if [ -n "$path" ]; then
     ext="${path##*.}"
     lang=$(lang_by_ext "$ext")
 fi
@@ -84,39 +109,40 @@ if [ -z "$lang" ]; then
     if [[ "$data" =~ \#![[:space:]]*([/[:alnum:]\.]+)[[:space:]]*([/[:alnum:]\.]+)* ]]; then
         grp_="${BASH_REMATCH[1]}"
         _grp="${BASH_REMATCH[2]}"
-        lnk=$(readlink -f "$(which "$grp_")")
-        bin="${lnk##*/}"
-        if [[ "$bin" =~ ([[:alpha:]]+) ]]; then
-            bin="${BASH_REMATCH[1]}"
-        fi
-        lang=$(lang_by_bin "$bin")
+        lang=$(lang_by_bin_path "$grp_")
         if [ -z "$lang" ]; then
-            lnk=$(readlink -f "$(which "$_grp")")
-            bin="${lnk##*/}"
-            if [[ "$bin" =~ ([[:alpha:]]+) ]]; then
-                bin="${BASH_REMATCH[1]}"
-            fi
-            lang=$(lang_by_bin "$bin")
+            lang=$(lang_by_bin_path "$_grp")
         fi
     fi
 fi
+if [ -n "$lang" ]; then
+	echo "'$lang' detected"
+fi
 # default
 if [ -z "$lang" ]; then
+	echo "default to 'plain'"
     lang="plain"
 fi
 
 # sending request to the paste.ee endpoint
-paste_url=$(curl --data "key=f897b34b487bedffdb8d2e77300743ce&paste=$data&format=simple&language=$lang" https://paste.ee/api)
-echo "$paste_url"
+echo "Send data..."
+if paste_url=$(curl --data "key=f897b34b487bedffdb8d2e77300743ce&paste=$data&format=simple&language=$lang" https://paste.ee/api 2>/dev/null); then
+	echo "ok: $paste_url"
+else
+	echo "failed: $paste_url"
+	exit 1
+fi
 
 # opening the url received
+echo "Open URL..."
 if [ -x "$BROWSER" ]; then
 	exec "$BROWSER" "$paste_url"
 fi
 
 default_open=$(which xdg-open || which gnome-open)
-if [ ! -z "$default_open" ]; then
+if [ -n "$default_open" ]; then
 	exec "$default_open" "$paste_url"
 fi
 
-echo "Unable to open URL"
+echo "unable to open URL"
+exit 0
