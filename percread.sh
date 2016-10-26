@@ -64,5 +64,5 @@ function percread() {
 function watchfile() {
 	local interval=1
 	percread "$1" "$interval"
-	return 0
+	return "$?"
 }
