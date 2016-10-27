@@ -30,16 +30,18 @@ function percread() {
 	fi
 	echo "Please wait. It may take a while..."
 	# local path=$(lsof | awk -v pattern="$path_regex" '$0 ~ pattern {print $9}') # ERE
-	local path=$(lsof | awk '{if(NR>1){print $9}}' | grep "$path_regex") # BRE
-	if [ -z "$path" ]; then
+	local path_str=$(lsof | awk '{if(NR>1){print $9}}' | grep "$path_regex") # BRE
+	if [ -z "$path_str" ]; then
 		echo "Illegal argument: regex does not match any files"
 		return 1
 	fi
-	if [[ "$path" =~ $'\n' ]]; then
+	local m_cnt=$(echo "$path_str" | wc -l)
+	if [ "$m_cnt" -gt 1 ]; then
 		echo "Illegal argument: regex matches multiple files"
 		return 1
 	fi
-	echo "Tracking file '$path'"
+	local path=$(echo -e "$path_str")
+	echo "Tracking file '$path_str'"
 	local perc
 	if [ -n "$interval" ]; then
 		while $(lsof "$path" >/dev/null 2>&1); do
@@ -50,7 +52,7 @@ function percread() {
 			echo -ne "File read: $perc%"\\r
 			sleep "$interval"
 		done
-		echo "File '$path' was closed"
+		echo "File '$path_str' was closed"
 	else
 		if ! perc=$(_percread "$path"); then
 			echo "Unexpected error: $perc"
