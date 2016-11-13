@@ -33,17 +33,14 @@ function percread() {
 			return 1
 		fi
 		local file_offset=$(cut -c4- <(echo "$rec" | sed -n 2p)) # cut off 0t decimal prefix
-		if [ -z "$file_size" ]; then
-			file
-		fi
-		local file_perc=$(awk "BEGIN {printf \"%6.2f\", 100.0 * ${file_offset} / ${file_size}}")
+		local file_perc=$(echo "scale=2; 100 * $file_offset / $file_size" | bc) # $(awk "BEGIN { printf \"%6.2f\", 100.0 * $file_offset / $file_size }")
 		echo "$file_perc"
 		return 0
 	}
 	#
 	local path_regex="$1"
 	local interval="$2"
-	if [ -z $"path_regex" ]; then
+	if [ -z "$path_regex" ]; then
 		echo "Required argument: path_regex" >&2
 		return 1
 	fi
@@ -83,7 +80,7 @@ function percread() {
 			echo "Unexpected error: $perc" >&2
 			return 1
 		fi
-		echo "$perc"
+		echo "File read: $perc%"
 	fi
 	return 0
 }
@@ -91,5 +88,4 @@ function percread() {
 function watchfile() {
 	local interval=1
 	percread "$1" "$interval"
-	return "$?"
 }
