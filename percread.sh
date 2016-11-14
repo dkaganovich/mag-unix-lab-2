@@ -7,15 +7,15 @@ function percread() {
 	# utility method to calculate file size
 	function _calc_file_size() {
 		local path="$1"
-		if ! rec=$(lsof -s -F s "$path" 2>/dev/null); then # -s show size
+		if ! rec=$(lsof -s -F pfs "$path" 2>/dev/null); then # -s show size
 			echo "Failed to read file size data: file was closed" >&2
 			return 1
 		fi
-		if [ -z "$rec" ]; then
+		file_size=$(cut -c2- <(echo "$rec" | sed -n '3p'))
+		if [ -z "$file_size" ]; then
 			echo "Failed to read file size data: no data provided" >&2
 			return 1
 		fi
-		file_size=$(cut -c2- <(echo "$rec" | sed -n 2p))
 		echo "$file_size"
 		return 0
 	}
@@ -24,15 +24,15 @@ function percread() {
 		local path="$1"
 		local file_size="$2"
 		local rec
-		if ! rec=$(lsof -oo0 -F o "$path" 2>/dev/null); then # -o show offset -o0 in decimal format
+		if ! rec=$(lsof -oo0 -F pfo "$path" 2>/dev/null); then # -o show offset -o0 in decimal format
 			echo "Failed to read file offset data: file was closed" >&2
 			return 1
 		fi
-		if [ -z "$rec" ]; then
+		local file_offset=$(cut -c4- <(echo "$rec" | sed -n '3p')) # cut off 0t decimal prefix
+		if [ -z "$file_offset" ]; then
 			echo "Failed to read file offset data: no data provided" >&2
 			return 1
 		fi
-		local file_offset=$(cut -c4- <(echo "$rec" | sed -n 2p)) # cut off 0t decimal prefix
 		local file_perc=$(echo "scale=2; 100 * $file_offset / $file_size" | bc) # $(awk "BEGIN { printf \"%6.2f\", 100.0 * $file_offset / $file_size }")
 		echo "$file_perc"
 		return 0
