@@ -45,15 +45,14 @@ function percread() {
 		return 1
 	fi
 	echo "Please wait. It may take a while..."
-	# local path=$(lsof | awk -v pattern="$path_regex" '$0 ~ pattern {print $9}') # ERE
-	local path_str=$(lsof | awk '{if(NR>1){print $9}}' | grep "$path_regex") # BRE
+	local path_str=$(lsof -F n | grep 'n.*'"$path_regex"'.*' | cut -c2-)
 	if [ -z "$path_str" ]; then
 		echo "Illegal argument: regex does not match any files" >&2
 		return 1
 	fi
 	local m_cnt=$(echo "$path_str" | wc -l)
 	if [ "$m_cnt" -gt 1 ]; then
-		echo "Illegal argument: regex matches multiple files" >&2
+		echo "Illegal argument: regex matches multiple files: $m_cnt" >&2
 		return 1
 	fi
 	local path=$(echo -e "$path_str")
@@ -61,6 +60,10 @@ function percread() {
 	local file_size # persist file size to speed up perc% calculations
 	if ! file_size=$(_calc_file_size "$path"); then
 		echo "Unexpected error: $file_size" >&2
+		return 1
+	fi
+	if [ "$file_size" -eq 0 ]; then
+		echo "File is empty. Exiting..." >&2
 		return 1
 	fi
 	echo "File size: $file_size"
