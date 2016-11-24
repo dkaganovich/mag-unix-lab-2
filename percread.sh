@@ -45,7 +45,7 @@ function percread() {
 		return 1
 	fi
 	echo "Please wait. It may take a while..."
-	local path_str=$(lsof -F n | grep 'n.*'"$path_regex"'.*' | cut -c2-)
+	local path_str=$(lsof -F n | grep '^n' | cut -c2- | grep "$path_regex")
 	if [ -z "$path_str" ]; then
 		echo "Illegal argument: regex does not match any files" >&2
 		return 1
